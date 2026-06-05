@@ -1179,7 +1179,7 @@ document.addEventListener("change", async (event) => {
 });
 
 function filenameBase() {
-  return `hydroponics-financial-statements-${todayIso()}`;
+  return `hydrofs-${todayIso()}`;
 }
 
 function safeFilename(name) {

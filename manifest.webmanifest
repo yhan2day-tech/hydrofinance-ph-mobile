@@ -1,6 +1,6 @@
 {
-  "name": "Hydroponics Financial Statements",
-  "short_name": "HFS",
+  "name": "HydroFS",
+  "short_name": "HydroFS",
   "description": "Offline mobile app flow for the hydroponics financial statements workbook.",
   "start_url": ".",
   "scope": ".",

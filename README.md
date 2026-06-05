@@ -1,6 +1,6 @@
-# Hydroponics Financial Statements
+# HydroFS
 
-Hydroponics Financial Statements is a free, offline-first phone app that follows the contents and flow of the hydroponics owner financial model v3 workbook while keeping the source Excel file unchanged.
+HydroFS is a free, offline-first phone app that follows the contents and flow of the hydroponics owner financial model v3 workbook while keeping the source Excel file unchanged.
 
 The app mirrors the workbook ledgers from:
 
