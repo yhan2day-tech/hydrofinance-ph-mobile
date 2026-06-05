@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0d5c63">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="HydroFinance PH">
+    <title>HydroFinance PH</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">HF</div>
+        <div>
+          <h1>HydroFinance PH</h1>
+          <span>Owner model v3 mobile ledger</span>
+        </div>
+      </div>
+      <button id="installButton" class="button install" type="button" data-action="install-app" hidden>Install</button>
+    </header>
+
+    <nav id="nav" class="nav-tabs" aria-label="App views"></nav>
+
+    <main id="app" class="app-shell">
+      <section class="empty-state">Loading...</section>
+    </main>
+
+    <footer id="status" class="status">HydroFinance PH</footer>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

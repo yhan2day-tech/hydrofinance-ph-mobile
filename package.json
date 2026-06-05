@@ -1,0 +1,11 @@
+{
+  "name": "hydrofinance-ph-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first mobile finance ledger for the hydroponics owner model v3 workbook.",
+  "scripts": {
+    "serve": "node server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}
