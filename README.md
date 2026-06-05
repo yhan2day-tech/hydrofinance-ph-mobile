@@ -1,10 +1,12 @@
 # HydroFinance PH
 
-HydroFinance PH is a free, offline-first phone app for updating the hydroponics owner financial model v3 while away from the PC.
+HydroFinance PH is a free, offline-first phone app for updating a copied version of the hydroponics owner financial model v3 while away from the PC.
 
 The app mirrors the workbook ledgers from:
 
 `B:\PERSONAL\HYDROPONICS\outputs\hydroponics_financial_statement_template\hydroponics_financial_statement_owner_model_v3_pack_sales.xlsx`
+
+This is a separate app. It is not merged with HydroCheck PH Free V3 and does not share that app's storage.
 
 ## What It Tracks
 
@@ -20,6 +22,7 @@ The app mirrors the workbook ledgers from:
 - Financing and equity
 - Crop-cycle costing
 - Dashboard, cash estimate, model checks, CSV, JSON, and Excel-compatible export
+- A Workbook tab with a copied sheet-by-sheet snapshot of the Excel workbook
 
 ## Important Phone Limitation
 
@@ -30,6 +33,8 @@ An Android browser cannot directly edit a Windows file at `B:\...`. This app sav
 - Excel-compatible `.xls` workbook that opens in Microsoft Excel
 
 Use the export file to copy or review phone updates back on the PC workbook.
+
+The source Excel workbook remains unchanged unless you later choose to manually update it on the PC.
 
 ## Local Run
 

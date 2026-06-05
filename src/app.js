@@ -30,6 +30,7 @@ import {
   uniquePeriods
 } from "./core.js";
 import { clearState, loadState, saveState } from "./storage.js";
+import { WORKBOOK_COPY, WORKBOOK_SOURCE } from "./workbook-copy.js";
 
 const navEl = document.querySelector("#nav");
 const appEl = document.querySelector("#app");
@@ -39,11 +40,13 @@ const installButton = document.querySelector("#installButton");
 let state = createDefaultState();
 let currentView = "dashboard";
 let currentPeriod = "all";
+let currentWorkbookSheet = WORKBOOK_COPY[0]?.name || "Dashboard";
 let editing = null;
 let deferredInstallPrompt = null;
 
 const views = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "workbook", label: "Workbook" },
   { id: "setup", label: "Setup" },
   { id: "sales", label: "Sales" },
   { id: "purchases", label: "Purchases" },
@@ -743,6 +746,10 @@ function renderSync() {
         <strong>Excel workbook</strong>
         <span>.xls with workbook-style sheets</span>
       </button>
+      <button class="action-tile" type="button" data-action="export-source-excel">
+        <strong>Original copy</strong>
+        <span>Source workbook snapshot from PC</span>
+      </button>
       <button class="action-tile" type="button" data-action="export-json">
         <strong>JSON backup</strong>
         <span>Full app data backup</span>
@@ -753,8 +760,8 @@ function renderSync() {
         <input id="importJson" type="file" accept="application/json,.json" data-action="import-json">
       </label>
       <button class="action-tile danger-tile" type="button" data-action="reset-sample">
-        <strong>Reset sample</strong>
-        <span>Clear phone data</span>
+        <strong>Reset Excel copy</strong>
+        <span>Restore copied workbook data</span>
       </button>
     </section>
     <section class="panel form-panel">
@@ -772,9 +779,69 @@ function renderSync() {
       ${renderSimpleRows([
         ["Saved records", totalRecords()],
         ["Last update", state.updatedAt ? new Date(state.updatedAt).toLocaleString("en-PH") : "Not saved yet"],
+        ["Excel copied from", WORKBOOK_SOURCE.fileName],
+        ["Excel folder", WORKBOOK_SOURCE.folder],
         ["Offline storage", "IndexedDB/localStorage"],
         ["Install mode", matchMedia("(display-mode: standalone)").matches ? "Installed" : "Browser"]
       ])}
+    </section>
+  `;
+}
+
+function sourceWorkbookSheets() {
+  return Object.fromEntries(WORKBOOK_COPY.map((sheet) => [sheet.name, sheet.rows]));
+}
+
+function renderWorkbookCopy() {
+  const sheet = WORKBOOK_COPY.find((item) => item.name === currentWorkbookSheet) || WORKBOOK_COPY[0];
+  if (!sheet) return `<section class="empty-state">No workbook copy is available.</section>`;
+  const options = WORKBOOK_COPY.map(
+    (item) =>
+      `<option value="${escapeHtml(item.name)}"${item.name === sheet.name ? " selected" : ""}>${escapeHtml(item.name)}</option>`
+  ).join("");
+  return `
+    <section class="section-heading">
+      <h1>Excel Workbook Copy</h1>
+      <span>${escapeHtml(WORKBOOK_SOURCE.fileName)}</span>
+    </section>
+    <section class="toolbar">
+      <label>
+        <span>Sheet</span>
+        <select data-action="workbook-sheet">${options}</select>
+      </label>
+      <button class="button ghost" type="button" data-action="export-source-excel">Export original copy</button>
+    </section>
+    <section class="panel source-panel">
+      <div class="panel-heading">
+        <h2>${escapeHtml(sheet.name)}</h2>
+        <span>${sheet.maxRow} rows x ${sheet.maxColumn} columns</span>
+      </div>
+      <div class="source-meta">
+        <span>Folder: ${escapeHtml(WORKBOOK_SOURCE.folder)}</span>
+        <span>Last modified: ${escapeHtml(WORKBOOK_SOURCE.lastModified)}</span>
+      </div>
+      <div class="workbook-scroll">
+        <table class="workbook-table">
+          <tbody>
+            ${sheet.rows
+              .map(
+                (row, rowIndex) => `
+                  <tr>
+                    <th scope="row">${rowIndex + 1}</th>
+                    ${row
+                      .map((cell) => {
+                        const value = cell === null || cell === undefined ? "" : String(cell);
+                        const formula = value.startsWith("=") ? " formula-cell" : "";
+                        return `<td class="${formula}">${escapeHtml(value)}</td>`;
+                      })
+                      .join("")}
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
     </section>
   `;
 }
@@ -808,6 +875,7 @@ function renderNav() {
 function render() {
   renderNav();
   if (currentView === "dashboard") appEl.innerHTML = renderDashboard();
+  else if (currentView === "workbook") appEl.innerHTML = renderWorkbookCopy();
   else if (currentView === "setup") appEl.innerHTML = renderSetup();
   else if (currentView === "sync") appEl.innerHTML = renderSync();
   else appEl.innerHTML = renderCollection(currentView);
@@ -900,15 +968,16 @@ document.addEventListener("click", async (event) => {
 
   if (action === "export-json") downloadJson();
   if (action === "export-excel") downloadExcel();
+  if (action === "export-source-excel") downloadSourceExcel();
   if (action === "export-csv") downloadCsv();
 
   if (action === "reset-sample") {
-    if (!confirm("Clear this phone data and return to sample records?")) return;
+    if (!confirm("Clear this phone data and return to the copied Excel workbook data?")) return;
     await clearState();
     state = createDefaultState();
     currentPeriod = "all";
     editing = null;
-    await persist("Sample data restored.");
+    await persist("Copied Excel data restored.");
   }
 
   if (action === "install-app") installApp();
@@ -918,6 +987,10 @@ document.addEventListener("change", async (event) => {
   const target = event.target;
   if (target.dataset.action === "period") {
     currentPeriod = target.value;
+    render();
+  }
+  if (target.dataset.action === "workbook-sheet") {
+    currentWorkbookSheet = target.value;
     render();
   }
   if (target.dataset.action === "import-json" && target.files?.[0]) {
@@ -955,6 +1028,15 @@ function downloadExcel() {
   const sheets = buildWorkbookSheets(state);
   downloadFile(`${filenameBase()}-excel-export.xls`, "application/vnd.ms-excel;charset=utf-8", toSpreadsheetXml(sheets));
   renderStatus("Excel workbook downloaded.");
+}
+
+function downloadSourceExcel() {
+  downloadFile(
+    `${filenameBase()}-original-workbook-copy.xls`,
+    "application/vnd.ms-excel;charset=utf-8",
+    toSpreadsheetXml(sourceWorkbookSheets())
+  );
+  renderStatus("Original workbook copy downloaded.");
 }
 
 function downloadCsv() {

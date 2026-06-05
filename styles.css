@@ -444,6 +444,57 @@ textarea:focus {
   flex: 1;
 }
 
+.source-panel {
+  overflow: hidden;
+}
+
+.source-meta {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.workbook-scroll {
+  max-height: 66vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.workbook-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 0.82rem;
+}
+
+.workbook-table th,
+.workbook-table td {
+  max-width: 280px;
+  padding: 7px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+}
+
+.workbook-table th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-weight: 800;
+}
+
+.formula-cell {
+  color: var(--blue);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
 .status {
   position: fixed;
   right: 12px;

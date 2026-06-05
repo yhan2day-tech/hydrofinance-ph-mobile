@@ -1,3 +1,5 @@
+import { EXCEL_IMPORTED_STATE } from "./workbook-copy.js";
+
 export const APP_NAME = "HydroFinance PH";
 export const APP_VERSION = "1.0.0";
 
@@ -281,7 +283,7 @@ export const DEFAULT_STATE = {
 };
 
 export function createDefaultState() {
-  return deepClone(DEFAULT_STATE);
+  return deepClone(EXCEL_IMPORTED_STATE);
 }
 
 export function deepClone(value) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "hydrofinance-ph-mobile-v1";
+const CACHE_NAME = "hydrofinance-ph-mobile-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "./src/app.js",
   "./src/core.js",
   "./src/storage.js",
+  "./src/workbook-copy.js",
   "./icons/icon.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
