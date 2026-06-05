@@ -1,4 +1,4 @@
-const CACHE_NAME = "hydrofinance-ph-mobile-v2";
+const CACHE_NAME = "hydroponics-financial-statements-v1";
 const ASSETS = [
   "./",
   "./index.html",

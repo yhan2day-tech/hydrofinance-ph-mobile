@@ -58,12 +58,13 @@ textarea {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
 .brand-mark {
   display: grid;
-  flex: 0 0 44px;
-  width: 44px;
+  flex: 0 0 48px;
+  width: 48px;
   height: 44px;
   place-items: center;
   color: #fff;
@@ -74,8 +75,10 @@ textarea {
 
 .brand h1 {
   margin: 0;
-  font-size: clamp(1.1rem, 4vw, 1.45rem);
-  line-height: 1.1;
+  max-width: 760px;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.98rem, 3.2vw, 1.35rem);
+  line-height: 1.12;
 }
 
 .brand span,
@@ -456,6 +459,44 @@ textarea:focus {
   font-size: 0.86rem;
 }
 
+.report-description {
+  margin: -2px 0 12px;
+  color: var(--muted);
+}
+
+.flow-pager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.flow-pager span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.flow-pager button:first-child {
+  justify-self: start;
+}
+
+.flow-pager button:last-child {
+  justify-self: end;
+}
+
+.flow-pager button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .workbook-scroll {
   max-height: 66vh;
   overflow: auto;
@@ -542,9 +583,10 @@ textarea:focus {
   }
 
   .brand-mark {
-    flex-basis: 40px;
-    width: 40px;
+    flex-basis: 42px;
+    width: 42px;
     height: 40px;
+    font-size: 0.86rem;
   }
 
   .brand span {
@@ -558,8 +600,10 @@ textarea:focus {
   .toolbar,
   .inline-form,
   .form-actions,
-  .entry-actions {
+  .entry-actions,
+  .flow-pager {
     align-items: stretch;
+    display: flex;
     flex-direction: column;
   }
 

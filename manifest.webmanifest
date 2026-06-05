@@ -1,7 +1,7 @@
 {
-  "name": "HydroFinance PH",
-  "short_name": "HydroFinance",
-  "description": "Offline mobile ledger for the hydroponics owner financial model.",
+  "name": "Hydroponics Financial Statements",
+  "short_name": "HFS",
+  "description": "Offline mobile app flow for the hydroponics financial statements workbook.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

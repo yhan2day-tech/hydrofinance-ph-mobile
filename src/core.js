@@ -1,6 +1,6 @@
 import { EXCEL_IMPORTED_STATE } from "./workbook-copy.js";
 
-export const APP_NAME = "HydroFinance PH";
+export const APP_NAME = "HYDROPONICS FINANCIAL STATEMENTS";
 export const APP_VERSION = "1.0.0";
 
 export const LEDGER_TYPES = [
@@ -1284,7 +1284,7 @@ export function buildWorkbookSheets(state) {
     "Sources & Guide": [
       ["Topic", "Notes"],
       ["Source workbook", "hydroponics_financial_statement_owner_model_v3_pack_sales.xlsx"],
-      ["Phone workflow", "Enter updates in HydroFinance PH, then export JSON backup or Excel-compatible workbook."],
+      ["Phone workflow", "Enter updates in HYDROPONICS FINANCIAL STATEMENTS, then export JSON backup or Excel-compatible workbook."],
       ["Excel workflow", "Open the exported .xls file in Excel or copy ledger sheets into the owner model workbook."],
       ["Storage", "Data is saved locally on this device using IndexedDB with localStorage fallback."]
     ]

@@ -1,4 +1,4 @@
-const DB_NAME = "hydrofinance-ph-mobile";
+const DB_NAME = "hydroponics-financial-statements";
 const STORE_NAME = "kv";
 const STATE_KEY = "state";
 

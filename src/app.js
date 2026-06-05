@@ -46,19 +46,29 @@ let deferredInstallPrompt = null;
 
 const views = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "workbook", label: "Workbook" },
-  { id: "setup", label: "Setup" },
-  { id: "sales", label: "Sales" },
-  { id: "purchases", label: "Purchases" },
-  { id: "usages", label: "Usage" },
-  { id: "tanks", label: "Tanks" },
+  { id: "setup", label: "Setup & Assumptions" },
+  { id: "sales", label: "Sales Register" },
+  { id: "electricity", label: "Electricity" },
+  { id: "tanks", label: "Tank & Top-up Log" },
+  { id: "nutrient-purchases", label: "Nutrient Purchases" },
+  { id: "nutrient-usage", label: "Nutrient Mixing Usage" },
+  { id: "supply-purchases", label: "Seed & Supply Purchases" },
+  { id: "supply-usage", label: "Seed & Supply Usage" },
+  { id: "chemical-purchases", label: "Chemical Purchases" },
+  { id: "chemical-usage", label: "Chemical Usage" },
   { id: "labor", label: "Labor" },
-  { id: "electricity", label: "Power" },
   { id: "assets", label: "Assets" },
-  { id: "expenses", label: "Expenses" },
-  { id: "financing", label: "Financing" },
-  { id: "cycles", label: "Cycles" },
-  { id: "sync", label: "Sync" }
+  { id: "financing", label: "Financing & Equity" },
+  { id: "expenses", label: "Other Expenses" },
+  { id: "inventory-summary", label: "Inventory Summary", sheetName: "Inventory Summary" },
+  { id: "income-statement", label: "Income Statement", sheetName: "Income Statement" },
+  { id: "balance-sheet", label: "Balance Sheet", sheetName: "Balance Sheet" },
+  { id: "cash-flow", label: "Cash Flow", sheetName: "Cash Flow" },
+  { id: "pricing-margin", label: "Pricing & Margin", sheetName: "Pricing & Margin" },
+  { id: "cycles", label: "Crop Cycle Costing" },
+  { id: "model-checks", label: "Model Checks", sheetName: "Model Checks" },
+  { id: "sources-guide", label: "Sources & Guide", sheetName: "Sources & Guide" },
+  { id: "sync", label: "Sync & Export" }
 ];
 
 const setupFields = [
@@ -460,6 +470,86 @@ const collectionDefs = {
   }
 };
 
+function sheetCollectionView(id, baseId, title, formTitle, fixedValues, titleFor) {
+  const base = collectionDefs[baseId];
+  return {
+    ...base,
+    viewId: id,
+    collection: base.collection,
+    title,
+    formTitle,
+    fixedValues,
+    fields: base.fields.filter((field) => !(field.name in fixedValues)),
+    defaults: () => ({ ...base.defaults(), ...fixedValues }),
+    rows: () =>
+      base.rows().filter((row) =>
+        Object.entries(fixedValues).every(([key, value]) => String(row[key] || "") === String(value))
+      ),
+    titleFor: titleFor || base.titleFor
+  };
+}
+
+const sheetCollectionDefs = {
+  "nutrient-purchases": sheetCollectionView(
+    "nutrient-purchases",
+    "purchases",
+    "Nutrient Purchases",
+    "Nutrient Purchase",
+    { ledger: "nutrient" },
+    (row) => row.item || "Nutrient Purchase"
+  ),
+  "nutrient-usage": sheetCollectionView(
+    "nutrient-usage",
+    "usages",
+    "Nutrient Mixing Usage",
+    "Nutrient Usage",
+    { ledger: "nutrient" },
+    (row) => `${row.tankRef || row.batch || "Nutrient"} - ${row.item || "Usage"}`
+  ),
+  "supply-purchases": sheetCollectionView(
+    "supply-purchases",
+    "purchases",
+    "Seed & Supply Purchases",
+    "Seed/Supply Purchase",
+    { ledger: "supply" },
+    (row) => row.item || "Seed/Supply Purchase"
+  ),
+  "supply-usage": sheetCollectionView(
+    "supply-usage",
+    "usages",
+    "Seed & Supply Usage",
+    "Seed/Supply Usage",
+    { ledger: "supply" },
+    (row) => `${row.batch || "Batch"} - ${row.item || "Usage"}`
+  ),
+  "chemical-purchases": sheetCollectionView(
+    "chemical-purchases",
+    "purchases",
+    "Chemical Purchases",
+    "Chemical Purchase",
+    { ledger: "chemical" },
+    (row) => row.item || "Chemical Purchase"
+  ),
+  "chemical-usage": sheetCollectionView(
+    "chemical-usage",
+    "usages",
+    "Chemical Usage",
+    "Chemical Usage",
+    { ledger: "chemical" },
+    (row) => `${row.batch || "Batch"} - ${row.item || "Usage"}`
+  )
+};
+
+const viewCollectionDefs = { ...collectionDefs, ...sheetCollectionDefs };
+
+function collectionDefFor(viewId) {
+  return viewCollectionDefs[viewId];
+}
+
+function viewFor(viewId) {
+  return views.find((view) => view.id === viewId);
+}
+
 function todayIso() {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -526,13 +616,14 @@ function fieldControl(field, value) {
 function renderForm(def, values) {
   const activeValues = { ...def.defaults(), ...values };
   const isEditing = Boolean(activeValues.id);
+  const formId = def.viewId || def.collection;
   return `
     <section class="panel form-panel" id="${def.collection}-entry-panel">
       <div class="panel-heading">
         <h2>${isEditing ? "Edit" : "Add"} ${escapeHtml(def.formTitle)}</h2>
         ${isEditing ? `<button class="button ghost" type="button" data-action="cancel-edit">Cancel</button>` : ""}
       </div>
-      <form id="${def.collection}-form" class="entry-form" data-form-kind="collection" data-collection="${def.collection}">
+      <form id="${formId}-form" class="entry-form" data-form-kind="collection" data-collection="${def.collection}" data-view-def="${formId}">
         <input type="hidden" name="id" value="${escapeHtml(activeValues.id || "")}">
         <div class="form-grid">
           ${def.fields
@@ -583,8 +674,8 @@ function renderRows(def, rows) {
               ${
                 row.id
                   ? `<div class="entry-actions">
-                      <button class="button small" type="button" data-action="edit-entry" data-collection="${def.collection}" data-id="${escapeHtml(row.id)}">Edit</button>
-                      <button class="button small danger" type="button" data-action="delete-entry" data-collection="${def.collection}" data-id="${escapeHtml(row.id)}">Delete</button>
+                      <button class="button small" type="button" data-action="edit-entry" data-collection="${def.collection}" data-view-def="${def.viewId || def.collection}" data-id="${escapeHtml(row.id)}">Edit</button>
+                      <button class="button small danger" type="button" data-action="delete-entry" data-collection="${def.collection}" data-view-def="${def.viewId || def.collection}" data-id="${escapeHtml(row.id)}">Delete</button>
                     </div>`
                   : ""
               }
@@ -634,6 +725,7 @@ function renderDashboard() {
   const inventory = inventorySummary(state).slice(0, 6);
   return `
     ${renderPeriodBar()}
+    ${renderFlowPager()}
     <section class="dashboard-title">
       <h2>${escapeHtml(state.assumptions.businessName)}</h2>
       <p>${escapeHtml(readableMonth(currentPeriod))}</p>
@@ -691,6 +783,7 @@ function renderSimpleRows(rows) {
 function renderSetup() {
   return `
     ${renderPeriodBar()}
+    ${renderFlowPager()}
     <section class="panel form-panel">
       <div class="panel-heading"><h2>Setup & Assumptions</h2></div>
       <form id="setup-form" class="entry-form" data-form-kind="setup">
@@ -715,12 +808,15 @@ function renderSetup() {
 }
 
 function renderCollection(collection) {
-  const def = collectionDefs[collection];
+  const def = collectionDefFor(collection);
   const rawEdit =
-    editing && editing.collection === collection ? (state[collection] || []).find((row) => row.id === editing.id) : null;
+    editing && editing.collection === def.collection
+      ? (state[def.collection] || []).find((row) => row.id === editing.id)
+      : null;
   const rows = def.rows();
   return `
     ${renderPeriodBar()}
+    ${renderFlowPager()}
     <section class="section-heading">
       <h1>${escapeHtml(def.title)}</h1>
       <span>${rows.length} record${rows.length === 1 ? "" : "s"}</span>
@@ -737,6 +833,7 @@ function renderSync() {
     .join("");
   return `
     ${renderPeriodBar()}
+    ${renderFlowPager()}
     <section class="section-heading">
       <h1>Sync & Export</h1>
       <span>Version ${escapeHtml(APP_VERSION)}</span>
@@ -792,8 +889,77 @@ function sourceWorkbookSheets() {
   return Object.fromEntries(WORKBOOK_COPY.map((sheet) => [sheet.name, sheet.rows]));
 }
 
+function workbookSheetByName(sheetName) {
+  return WORKBOOK_COPY.find((item) => item.name === sheetName);
+}
+
+function flowPosition(viewId) {
+  const index = views.findIndex((view) => view.id === viewId);
+  return { index, total: views.length };
+}
+
+function renderFlowPager() {
+  const { index, total } = flowPosition(currentView);
+  const previous = views[index - 1];
+  const next = views[index + 1];
+  return `
+    <section class="flow-pager" aria-label="Workbook flow">
+      <button class="button ghost" type="button" data-action="flow-prev" ${previous ? "" : "disabled"}>${previous ? `Back: ${escapeHtml(previous.label)}` : "Back"}</button>
+      <span>Sheet flow ${index + 1} of ${total}</span>
+      <button class="button ghost" type="button" data-action="flow-next" ${next ? "" : "disabled"}>${next ? `Next: ${escapeHtml(next.label)}` : "Next"}</button>
+    </section>
+  `;
+}
+
+function renderWorkbookSheetReport(view) {
+  const sheet = workbookSheetByName(view.sheetName);
+  if (!sheet) return `<section class="empty-state">No copied sheet is available for ${escapeHtml(view.label)}.</section>`;
+  const title = sheet.rows[0]?.find((value) => value) || view.label;
+  const description = sheet.rows[1]?.find((value) => value) || "";
+  return `
+    ${renderFlowPager()}
+    <section class="section-heading">
+      <h1>${escapeHtml(view.label)}</h1>
+      <span>${escapeHtml(WORKBOOK_SOURCE.fileName)}</span>
+    </section>
+    <section class="panel source-panel app-report">
+      <div class="panel-heading">
+        <h2>${escapeHtml(title)}</h2>
+        <span>${sheet.maxRow} rows x ${sheet.maxColumn} columns</span>
+      </div>
+      ${description ? `<p class="report-description">${escapeHtml(description)}</p>` : ""}
+      <div class="source-meta">
+        <span>Workbook folder: ${escapeHtml(WORKBOOK_SOURCE.folder)}</span>
+        <span>Copied from Excel last modified: ${escapeHtml(WORKBOOK_SOURCE.lastModified)}</span>
+      </div>
+      <div class="workbook-scroll">
+        <table class="workbook-table">
+          <tbody>
+            ${sheet.rows
+              .map(
+                (row, rowIndex) => `
+                  <tr>
+                    <th scope="row">${rowIndex + 1}</th>
+                    ${row
+                      .map((cell) => {
+                        const value = cell === null || cell === undefined ? "" : String(cell);
+                        const formula = value.startsWith("=") ? " formula-cell" : "";
+                        return `<td class="${formula}">${escapeHtml(value)}</td>`;
+                      })
+                      .join("")}
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkbookCopy() {
-  const sheet = WORKBOOK_COPY.find((item) => item.name === currentWorkbookSheet) || WORKBOOK_COPY[0];
+  const sheet = workbookSheetByName(currentWorkbookSheet) || WORKBOOK_COPY[0];
   if (!sheet) return `<section class="empty-state">No workbook copy is available.</section>`;
   const options = WORKBOOK_COPY.map(
     (item) =>
@@ -873,11 +1039,12 @@ function renderNav() {
 }
 
 function render() {
+  const activeView = viewFor(currentView);
   renderNav();
   if (currentView === "dashboard") appEl.innerHTML = renderDashboard();
-  else if (currentView === "workbook") appEl.innerHTML = renderWorkbookCopy();
   else if (currentView === "setup") appEl.innerHTML = renderSetup();
   else if (currentView === "sync") appEl.innerHTML = renderSync();
+  else if (activeView?.sheetName) appEl.innerHTML = renderWorkbookSheetReport(activeView);
   else appEl.innerHTML = renderCollection(currentView);
   renderStatus();
 }
@@ -918,18 +1085,19 @@ document.addEventListener("submit", async (event) => {
   }
 
   const collection = form.dataset.collection;
-  const def = collectionDefs[collection];
+  const def = collectionDefFor(form.dataset.viewDef || collection);
   const formData = new FormData(form);
   const entryId = String(formData.get("id") || "");
   const entry = {
     ...readFields(form, def.fields),
+    ...(def.fixedValues || {}),
     id: entryId || makeId(def.prefix)
   };
-  const records = [...(state[collection] || [])];
+  const records = [...(state[def.collection] || [])];
   const index = records.findIndex((row) => row.id === entry.id);
   if (index >= 0) records[index] = entry;
   else records.unshift(entry);
-  state[collection] = records;
+  state[def.collection] = records;
   editing = null;
   await persist(`${def.formTitle} saved.`);
 });
@@ -945,16 +1113,27 @@ document.addEventListener("click", async (event) => {
     render();
   }
 
+  if (action === "flow-prev" || action === "flow-next") {
+    const { index } = flowPosition(currentView);
+    const offset = action === "flow-prev" ? -1 : 1;
+    const targetView = views[index + offset];
+    if (!targetView) return;
+    currentView = targetView.id;
+    editing = null;
+    render();
+  }
+
   if (action === "edit-entry") {
-    currentView = target.dataset.collection;
-    editing = { collection: target.dataset.collection, id: target.dataset.id };
+    const def = collectionDefFor(target.dataset.viewDef || target.dataset.collection);
+    currentView = target.dataset.viewDef || target.dataset.collection;
+    editing = { collection: def.collection, id: target.dataset.id };
     render();
     document.querySelector(".form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   if (action === "delete-entry") {
-    const collection = target.dataset.collection;
-    const def = collectionDefs[collection];
+    const def = collectionDefFor(target.dataset.viewDef || target.dataset.collection);
+    const collection = def.collection;
     if (!confirm(`Delete this ${def.formTitle.toLowerCase()} record?`)) return;
     state[collection] = (state[collection] || []).filter((row) => row.id !== target.dataset.id);
     editing = null;
@@ -1000,7 +1179,7 @@ document.addEventListener("change", async (event) => {
 });
 
 function filenameBase() {
-  return `hydrofinance-ph-${todayIso()}`;
+  return `hydroponics-financial-statements-${todayIso()}`;
 }
 
 function safeFilename(name) {

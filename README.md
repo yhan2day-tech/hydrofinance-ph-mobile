@@ -1,6 +1,6 @@
-# HydroFinance PH
+# Hydroponics Financial Statements
 
-HydroFinance PH is a free, offline-first phone app for updating a copied version of the hydroponics owner financial model v3 while away from the PC.
+Hydroponics Financial Statements is a free, offline-first phone app that follows the contents and flow of the hydroponics owner financial model v3 workbook while keeping the source Excel file unchanged.
 
 The app mirrors the workbook ledgers from:
 
@@ -10,19 +10,34 @@ This is a separate app. It is not merged with HydroCheck PH Free V3 and does not
 
 ## What It Tracks
 
-- Setup and assumptions
-- Sales register
-- Nutrient, seed/supply, and chemical purchases
-- Nutrient, seed/supply, and chemical usage with weighted-average cost
-- Tank and top-up logs
-- Labor
-- Electricity
-- Fixed assets and depreciation
-- Other expenses
-- Financing and equity
-- Crop-cycle costing
-- Dashboard, cash estimate, model checks, CSV, JSON, and Excel-compatible export
-- A Workbook tab with a copied sheet-by-sheet snapshot of the Excel workbook
+The app follows the Excel workbook flow:
+
+1. Dashboard
+2. Setup & Assumptions
+3. Sales Register
+4. Electricity
+5. Tank & Top-up Log
+6. Nutrient Purchases
+7. Nutrient Mixing Usage
+8. Seed & Supply Purchases
+9. Seed & Supply Usage
+10. Chemical Purchases
+11. Chemical Usage
+12. Labor
+13. Fixed Assets
+14. Financing & Equity
+15. Other Expenses
+16. Inventory Summary
+17. Income Statement
+18. Balance Sheet
+19. Cash Flow
+20. Pricing & Margin
+21. Crop Cycle Costing
+22. Model Checks
+23. Sources & Guide
+24. Sync & Export
+
+Input sheets use mobile forms and cards. Statement, check, and source sheets use app-styled report panels with the copied Excel content.
 
 ## Important Phone Limitation
 
