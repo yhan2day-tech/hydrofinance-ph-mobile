@@ -1,7 +1,7 @@
 import { EXCEL_IMPORTED_STATE } from "./workbook-copy.js";
 
 export const APP_NAME = "HydroFS";
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.1";
 
 export const LEDGER_TYPES = [
   { value: "nutrient", label: "Nutrient" },
@@ -428,6 +428,36 @@ export function enrichSales(state, period = "all") {
         netSales
       };
     });
+}
+
+export function salesByProduct(state, period = "all") {
+  const products = new Map();
+
+  for (const row of enrichSales(state, period)) {
+    const crop = String(row.crop || "Unspecified").trim() || "Unspecified";
+    const current = products.get(crop) || {
+      crop,
+      packsSold: 0,
+      equivalentHeads: 0,
+      grossSales: 0,
+      discountReturns: 0,
+      netSales: 0,
+      batches: []
+    };
+
+    current.packsSold += row.packsSold;
+    current.equivalentHeads += row.equivalentHeads;
+    current.grossSales += row.grossSales;
+    current.discountReturns += toNumber(row.discountReturns);
+    current.netSales += row.netSales;
+    if (row.batch && !current.batches.includes(row.batch)) current.batches.push(row.batch);
+    products.set(crop, current);
+  }
+
+  return [...products.values()].map((row) => ({
+    ...row,
+    averagePricePack: row.packsSold ? row.grossSales / row.packsSold : 0
+  }));
 }
 
 export function enrichPurchases(state, period = "all") {

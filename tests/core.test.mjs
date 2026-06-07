@@ -8,6 +8,7 @@ import {
   enrichUsages,
   inventorySummary,
   mergeState,
+  salesByProduct,
   toCsv,
   toSpreadsheetXml
 } from "../src/core.js";
@@ -34,6 +35,18 @@ test("copied workbook state calculates sales, costs, and cash", () => {
   assert.equal(Math.round(summary.costs.directProductionCost), 61190);
   assert.ok(summary.margin.grossMargin > 0.66);
   assert.ok(summary.cash.cashBalance < 0);
+});
+
+test("sales by product keeps every vegetable in Excel order", () => {
+  const products = salesByProduct(createDefaultState());
+
+  assert.deepEqual(
+    products.map((row) => row.crop),
+    ["Lettuce", "Cucumber", "Eggplant", "Okra", "Sili", "Upo"]
+  );
+  assert.equal(products.find((row) => row.crop === "Okra").netSales, 404);
+  assert.equal(products.find((row) => row.crop === "Sili").netSales, 90);
+  assert.equal(products.find((row) => row.crop === "Upo").netSales, 36);
 });
 
 test("usage rows use weighted average purchase cost from copied workbook values", () => {

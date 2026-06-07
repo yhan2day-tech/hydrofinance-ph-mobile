@@ -1,4 +1,4 @@
-const CACHE_NAME = "hydrofs-v1";
+const CACHE_NAME = "hydrofs-v2";
 const ASSETS = [
   "./",
   "./index.html",

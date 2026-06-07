@@ -24,6 +24,7 @@ import {
   makeId,
   mergeState,
   readableMonth,
+  salesByProduct,
   toCsv,
   toNumber,
   toSpreadsheetXml,
@@ -696,6 +697,43 @@ function renderMetric(label, value, tone = "") {
   `;
 }
 
+function displayCropName(crop) {
+  return String(crop || "").trim().toLowerCase() === "sili" ? "Sili (Pepper)" : crop;
+}
+
+function renderVegetableSummary(title) {
+  const products = salesByProduct(state, currentPeriod);
+  if (!products.length) return "";
+
+  return `
+    <section class="vegetable-section" aria-label="${escapeHtml(title)}">
+      <div class="vegetable-heading">
+        <h2>${escapeHtml(title)}</h2>
+        <span>${products.length} vegetable${products.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="vegetable-grid">
+        ${products
+          .map(
+            (row) => `
+              <article class="vegetable-card">
+                <div class="vegetable-card-head">
+                  <strong>${escapeHtml(displayCropName(row.crop))}</strong>
+                  <span>${escapeHtml(row.batches.join(", ") || "No batch")}</span>
+                </div>
+                <dl>
+                  <div><dt>Packs sold</dt><dd>${escapeHtml(formatNumber(row.packsSold, 4))}</dd></div>
+                  <div><dt>Price/pack</dt><dd>${escapeHtml(money(row.averagePricePack))}</dd></div>
+                  <div><dt>Net sales</dt><dd>${escapeHtml(money(row.netSales))}</dd></div>
+                </dl>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderPeriodBar() {
   const periods = uniquePeriods(state);
   const options = [
@@ -738,6 +776,7 @@ function renderDashboard() {
       ${renderMetric("Cash estimate", money(summary.cash.cashBalance), "accent-blue")}
       ${renderMetric("Suggested price", money(summary.margin.suggestedPrice), "accent-amber")}
     </section>
+    ${renderVegetableSummary("Sales by Vegetable")}
     <section class="split-grid">
       <div class="panel">
         <div class="panel-heading"><h2>Cost Stack</h2></div>
@@ -814,6 +853,12 @@ function renderCollection(collection) {
       ? (state[def.collection] || []).find((row) => row.id === editing.id)
       : null;
   const rows = def.rows();
+  const vegetableSummary =
+    collection === "sales"
+      ? renderVegetableSummary("Vegetables in Sales Register")
+      : collection === "cycles"
+        ? renderVegetableSummary("Vegetables Included in Sales")
+        : "";
   return `
     ${renderPeriodBar()}
     ${renderFlowPager()}
@@ -821,6 +866,7 @@ function renderCollection(collection) {
       <h1>${escapeHtml(def.title)}</h1>
       <span>${rows.length} record${rows.length === 1 ? "" : "s"}</span>
     </section>
+    ${vegetableSummary}
     ${renderForm(def, rawEdit || {})}
     ${renderRows(def, rows)}
   `;
