@@ -4,10 +4,8 @@ import {
   buildWorkbookSheets,
   calculateSummary,
   createDefaultState,
-  cycleCosting,
-  enrichUsages,
-  inventorySummary,
   mergeState,
+  monthlyCostSummary,
   salesByProduct,
   toCsv,
   toSpreadsheetXml
@@ -19,11 +17,12 @@ test("default state is copied from the source workbook", () => {
 
   assert.equal(WORKBOOK_SOURCE.fileName, "hydroponics_financial_statement_owner_model_v3_pack_sales.xlsx");
   assert.equal(WORKBOOK_SOURCE.folder, "B:\\PERSONAL\\HYDROPONICS\\outputs\\hydroponics_financial_statement_template");
-  assert.equal(WORKBOOK_COPY.length, 23);
+  assert.equal(WORKBOOK_COPY.length, 18);
   assert.equal(state.sales.length, 6);
   assert.equal(state.purchases.length, 15);
-  assert.equal(state.usages.length, 15);
-  assert.equal(state.cycles.length, 3);
+  assert.equal("usages" in state, false);
+  assert.equal("tanks" in state, false);
+  assert.equal("cycles" in state, false);
 });
 
 test("copied workbook state calculates sales, costs, and cash", () => {
@@ -32,9 +31,14 @@ test("copied workbook state calculates sales, costs, and cash", () => {
 
   assert.equal(summary.sales.netSales, 182879);
   assert.equal(Math.round(summary.sales.packsSold), 4970);
-  assert.equal(Math.round(summary.costs.directProductionCost), 61190);
-  assert.ok(summary.margin.grossMargin > 0.66);
-  assert.ok(summary.cash.cashBalance < 0);
+  assert.equal(summary.costs.nutrientCost, 25688);
+  assert.equal(summary.costs.supplyCost, 15489);
+  assert.equal(summary.costs.chemicalCost, 4085);
+  assert.equal(summary.costs.directProductionCost, 59483.022);
+  assert.ok(Math.abs(summary.costs.depreciation - 16511.111111111113) < 0.000001);
+  assert.ok(Math.abs(summary.income.netIncome - 106734.8668888889) < 0.000001);
+  assert.ok(summary.margin.grossMargin > 0.67);
+  assert.equal(summary.cash.cashBalance, 115455.978);
 });
 
 test("sales by product keeps every vegetable in Excel order", () => {
@@ -49,31 +53,17 @@ test("sales by product keeps every vegetable in Excel order", () => {
   assert.equal(products.find((row) => row.crop === "Upo").netSales, 36);
 });
 
-test("usage rows use weighted average purchase cost from copied workbook values", () => {
+test("monthly costing treats purchases as usage on their purchase dates", () => {
   const state = createDefaultState();
-  const row = enrichUsages(state).find((usage) => usage.id === "nutrient-usage-excel-r5");
+  const monthly = monthlyCostSummary(state);
+  const january = monthly.find((row) => row.period === "2026-01");
+  const june = monthly.find((row) => row.period === "2026-06");
 
-  assert.equal(row.item, "Masterblend 5-11-26");
-  assert.equal(row.weightedAvgCostUnit, 0.5167901234567901);
-  assert.equal(row.usageCost, 13953.333333333332);
-});
-
-test("inventory summary flags remaining quantities and value", () => {
-  const state = createDefaultState();
-  const inventory = inventorySummary(state);
-  const seeds = inventory.find((row) => row.item === "Lettuce Seeds");
-
-  assert.equal(seeds.endingQty, 1);
-  assert.equal(seeds.endingValue, 1101.5);
-});
-
-test("cycle costing joins sales and direct production cost by batch", () => {
-  const state = createDefaultState();
-  const batch = cycleCosting(state).find((row) => row.batch === "Batch 1");
-
-  assert.ok(batch.netSales > 180000);
-  assert.ok(batch.directProductionCost > 61000);
-  assert.ok(batch.suggestedPriceTargetGm > 0);
+  assert.equal(january.nutrientPurchases, 25688);
+  assert.equal(january.directProductionCost, 59483.022);
+  assert.equal(january.status, "Review");
+  assert.equal(june.netSales, 182879);
+  assert.equal(june.status, "OK");
 });
 
 test("workbook export contains expected sheets and escaped CSV", () => {
@@ -84,20 +74,33 @@ test("workbook export contains expected sheets and escaped CSV", () => {
   const xml = toSpreadsheetXml(sheets);
 
   assert.ok(sheets["Setup & Assumptions"]);
-  assert.ok(sheets["Crop Cycle Costing"]);
+  assert.ok(sheets["Monthly Cost Summary"]);
+  assert.equal("Tank & Top-up Log" in sheets, false);
+  assert.equal("Nutrient Mixing Usage" in sheets, false);
+  assert.equal("Seed & Supply Usage" in sheets, false);
+  assert.equal("Chemical Usage" in sheets, false);
+  assert.equal("Inventory Summary" in sheets, false);
   assert.match(csv, /"A, B ""quoted"""/);
   assert.match(xml, /Worksheet ss:Name="Sales Register"/);
   assert.match(xml, /Seed &amp; Supply Purchases/);
   assert.match(toSpreadsheetXml(Object.fromEntries(WORKBOOK_COPY.map((sheet) => [sheet.name, sheet.rows]))), /Hydroponics Owner Dashboard/);
 });
 
-test("mergeState keeps new default collections when importing old backups", () => {
+test("mergeState keeps active records and removes obsolete batch-era data", () => {
   const merged = mergeState(createDefaultState(), {
     assumptions: { owner: "Updated owner" },
-    sales: []
+    sales: [{ id: "sale-old", date: "2026-06-01", crop: "Okra", batch: "Batch 1" }],
+    labor: [{ id: "labor-old", date: "2026-06-01", workerRole: "Owner", batch: "Batch 1" }],
+    usages: [{ id: "usage-old" }],
+    tanks: [{ id: "tank-old" }],
+    cycles: [{ id: "cycle-old" }]
   });
 
   assert.equal(merged.assumptions.owner, "Updated owner");
-  assert.deepEqual(merged.sales, []);
-  assert.ok(Array.isArray(merged.cycles));
+  assert.equal(merged.sales[0].crop, "Okra");
+  assert.equal("batch" in merged.sales[0], false);
+  assert.equal("batch" in merged.labor[0], false);
+  assert.equal("usages" in merged, false);
+  assert.equal("tanks" in merged, false);
+  assert.equal("cycles" in merged, false);
 });

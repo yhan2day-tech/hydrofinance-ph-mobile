@@ -1,6 +1,6 @@
 # HydroFS
 
-HydroFS is a free, offline-first phone app that follows the contents and flow of the hydroponics owner financial model v3 workbook while keeping the source Excel file unchanged.
+HydroFS is a free, offline-first phone app that follows the contents and flow of the hydroponics owner financial model v3 workbook.
 
 The app mirrors the workbook ledgers from:
 
@@ -16,28 +16,30 @@ The app follows the Excel workbook flow:
 2. Setup & Assumptions
 3. Sales Register
 4. Electricity
-5. Tank & Top-up Log
-6. Nutrient Purchases
-7. Nutrient Mixing Usage
-8. Seed & Supply Purchases
-9. Seed & Supply Usage
-10. Chemical Purchases
-11. Chemical Usage
-12. Labor
-13. Fixed Assets
-14. Financing & Equity
-15. Other Expenses
-16. Inventory Summary
-17. Income Statement
-18. Balance Sheet
-19. Cash Flow
-20. Pricing & Margin
-21. Crop Cycle Costing
-22. Model Checks
-23. Sources & Guide
-24. Sync & Export
+5. Nutrient Purchases
+6. Seed & Supply Purchases
+7. Chemical Purchases
+8. Labor
+9. Fixed Assets
+10. Financing & Equity
+11. Other Expenses
+12. Income Statement
+13. Balance Sheet
+14. Cash Flow
+15. Pricing & Margin
+16. Monthly Cost Summary
+17. Model Checks
+18. Sources & Guide
+19. Sync & Export
 
 Input sheets use mobile forms and cards. Statement, check, and source sheets use app-styled report panels with the copied Excel content.
+
+## Date-Based Cost Policy
+
+- Batch/cycle tracking is no longer used.
+- Nutrient, seed/supply, and chemical purchases are treated as usage and expense on the purchase date.
+- Reports group activity by date and month.
+- Tank/top-up, usage, inventory, and crop-cycle screens have been removed.
 
 ## Important Phone Limitation
 
@@ -49,7 +51,7 @@ An Android browser cannot directly edit a Windows file at `B:\...`. This app sav
 
 Use the export file to copy or review phone updates back on the PC workbook.
 
-The source Excel workbook remains unchanged unless you later choose to manually update it on the PC.
+The app export remains a separate phone file. It does not directly overwrite the Windows workbook.
 
 ## Local Run
 

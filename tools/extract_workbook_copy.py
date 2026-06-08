@@ -12,7 +12,7 @@ SOURCE_WORKBOOK = Path(
     r"B:\PERSONAL\HYDROPONICS\outputs\hydroponics_financial_statement_template\hydroponics_financial_statement_owner_model_v3_pack_sales.xlsx"
 )
 OUTPUT_JS = Path(__file__).resolve().parents[1] / "src" / "workbook-copy.js"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 
 
 def clean(value: Any) -> Any:
@@ -186,7 +186,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
                 "id": f"sale-excel-r{idx}",
                 "date": date_value,
                 "crop": crop,
-                "batch": text(cell(row, 3)),
                 "packsSold": number(cell(row, 4)),
                 "lettucesPerPack": number(cell(row, 5), setup["defaultLettucesPerPack"]),
                 "pricePack": number(cell(row, 7), setup["defaultPricePack"]),
@@ -200,35 +199,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
     purchases += purchase_rows(get_rows(values_wb, "Nutrient Purchases"), "nutrient")
     purchases += purchase_rows(get_rows(values_wb, "Seed & Supply Purchases"), "supply")
     purchases += purchase_rows(get_rows(values_wb, "Chemical Purchases"), "chemical")
-
-    usages = []
-    usages += usage_rows(get_rows(values_wb, "Nutrient Mixing Usage"), "nutrient")
-    usages += usage_rows(get_rows(values_wb, "Seed & Supply Usage"), "supply")
-    usages += usage_rows(get_rows(values_wb, "Chemical Usage"), "chemical")
-
-    tanks = []
-    for idx, row in enumerate(get_rows(values_wb, "Tank & Top-up Log")[4:], start=5):
-        date_value = clean(cell(row, 0))
-        tank_ref = text(cell(row, 2))
-        if not date_value or not tank_ref:
-            continue
-        tanks.append(
-            {
-                "id": f"tank-excel-r{idx}",
-                "date": date_value,
-                "tankRef": tank_ref,
-                "batch": text(cell(row, 3)),
-                "tankId": text(cell(row, 4)),
-                "eventType": text(cell(row, 5)),
-                "startingVolumeL": number(cell(row, 6)),
-                "waterAddedL": number(cell(row, 7)),
-                "waterDischargedL": number(cell(row, 8)),
-                "endingVolumeL": number(cell(row, 9)),
-                "ec": number(cell(row, 10)),
-                "ph": number(cell(row, 11)),
-                "notes": text(cell(row, 14)),
-            }
-        )
 
     labor = []
     for idx, row in enumerate(get_rows(values_wb, "Labor")[4:], start=5):
@@ -245,7 +215,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
                 "hoursWorked": number(cell(row, 4)),
                 "overrideRateHour": number(cell(row, 5), ""),
                 "production": text(cell(row, 8)) or "Production",
-                "batch": text(cell(row, 9)),
                 "remarks": text(cell(row, 10)),
             }
         )
@@ -267,7 +236,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
                 "daysUsed": number(cell(row, 10)),
                 "rateKwh": number(cell(row, 12), setup["defaultElectricityRate"]),
                 "production": text(cell(row, 14)) or "Production",
-                "batch": text(cell(row, 15)),
                 "remarks": text(cell(row, 16)),
             }
         )
@@ -311,7 +279,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
                 "production": text(cell(row, 5)) or "Overhead",
                 "paid": text(cell(row, 6)) or "No",
                 "receiptRef": text(cell(row, 7)),
-                "batch": text(cell(row, 8)),
                 "remarks": text(cell(row, 9)),
             }
         )
@@ -335,24 +302,6 @@ def build_structured_state(values_wb) -> dict[str, Any]:
             }
         )
 
-    cycles = []
-    for idx, row in enumerate(get_rows(values_wb, "Crop Cycle Costing")[4:], start=5):
-        batch = text(cell(row, 0))
-        if not batch:
-            continue
-        cycles.append(
-            {
-                "id": f"cycle-excel-r{idx}",
-                "batch": batch,
-                "crop": text(cell(row, 1)),
-                "startDate": clean(cell(row, 2)) or "",
-                "harvestMonth": month(cell(row, 3)),
-                "expectedPacks": number(cell(row, 4)),
-                "status": text(cell(row, 21)),
-                "remarks": "Copied from Excel workbook.",
-            }
-        )
-
     return {
         "appVersion": APP_VERSION,
         "updatedAt": "",
@@ -364,14 +313,11 @@ def build_structured_state(values_wb) -> dict[str, Any]:
         "assumptions": setup,
         "sales": sales,
         "purchases": purchases,
-        "usages": usages,
-        "tanks": tanks,
         "labor": labor,
         "electricity": electricity,
         "assets": assets,
         "expenses": expenses,
         "financing": financing,
-        "cycles": cycles,
     }
 
 
@@ -379,11 +325,13 @@ def workbook_copy(formulas_wb) -> list[dict[str, Any]]:
     sheets = []
     for ws in formulas_wb.worksheets:
         rows = [[clean(cell.value) for cell in row] for row in ws.iter_rows()]
+        max_row = len(rows)
+        max_column = max((len(row) for row in rows), default=0)
         sheets.append(
             {
                 "name": ws.title,
-                "maxRow": ws.max_row,
-                "maxColumn": ws.max_column,
+                "maxRow": max_row,
+                "maxColumn": max_column,
                 "rows": rows,
             }
         )
@@ -416,7 +364,10 @@ def main() -> None:
         + ";\n",
         encoding="utf-8",
     )
-    counts = {key: len(payload["state"].get(key, [])) for key in ["sales", "purchases", "usages", "tanks", "labor", "electricity", "assets", "expenses", "financing", "cycles"]}
+    counts = {
+        key: len(payload["state"].get(key, []))
+        for key in ["sales", "purchases", "labor", "electricity", "assets", "expenses", "financing"]
+    }
     print(json.dumps({"output": str(OUTPUT_JS), "sheetCount": len(payload["sheets"]), "counts": counts}, indent=2))
 
 

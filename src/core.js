@@ -1,7 +1,7 @@
 import { EXCEL_IMPORTED_STATE } from "./workbook-copy.js";
 
 export const APP_NAME = "HydroFS";
-export const APP_VERSION = "1.0.1";
+export const APP_VERSION = "2.0.0";
 
 export const LEDGER_TYPES = [
   { value: "nutrient", label: "Nutrient" },
@@ -292,28 +292,42 @@ export function deepClone(value) {
 
 export function mergeState(defaultState, saved) {
   const base = deepClone(defaultState);
-  if (!saved || typeof saved !== "object") return base;
+  const activeCollections = [
+    "sales",
+    "purchases",
+    "labor",
+    "electricity",
+    "assets",
+    "expenses",
+    "financing"
+  ];
+  const cleanRecord = (row) => {
+    const { batch, tankRef, eventType, ...clean } = row || {};
+    return clean;
+  };
+  if (!saved || typeof saved !== "object") {
+    for (const key of activeCollections) {
+      base[key] = (base[key] || []).map(cleanRecord);
+    }
+    delete base.usages;
+    delete base.tanks;
+    delete base.cycles;
+    return base;
+  }
   const merged = {
     ...base,
     ...saved,
     assumptions: { ...base.assumptions, ...(saved.assumptions || {}) }
   };
 
-  for (const key of [
-    "sales",
-    "purchases",
-    "usages",
-    "tanks",
-    "labor",
-    "electricity",
-    "assets",
-    "expenses",
-    "financing",
-    "cycles"
-  ]) {
-    merged[key] = Array.isArray(saved[key]) ? saved[key] : base[key];
+  for (const key of activeCollections) {
+    const records = Array.isArray(saved[key]) ? saved[key] : base[key];
+    merged[key] = (records || []).map(cleanRecord);
   }
 
+  delete merged.usages;
+  delete merged.tanks;
+  delete merged.cycles;
   merged.appVersion = APP_VERSION;
   return merged;
 }
@@ -363,6 +377,12 @@ export function inPeriod(value, period = "all") {
   return monthKey(value) === period;
 }
 
+function inReportingPeriod(state, value, period = "all") {
+  if (period && period !== "all") return inPeriod(value, period);
+  const fiscalYear = String(state.assumptions.fiscalYear || "");
+  return !fiscalYear || monthKey(value).startsWith(fiscalYear);
+}
+
 export function formatMoney(value, currency = "PHP") {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -390,13 +410,10 @@ export function uniquePeriods(state) {
   for (const key of [
     "sales",
     "purchases",
-    "usages",
-    "tanks",
     "labor",
     "electricity",
     "expenses",
     "financing",
-    "cycles",
     "assets"
   ]) {
     for (const row of state[key] || []) {
@@ -410,7 +427,7 @@ export function uniquePeriods(state) {
 export function enrichSales(state, period = "all") {
   const defaultHeads = toNumber(state.assumptions.defaultLettucesPerPack, 1);
   return (state.sales || [])
-    .filter((row) => inPeriod(row.date, period))
+    .filter((row) => inReportingPeriod(state, row.date, period))
     .map((row) => {
       const packsSold = toNumber(row.packsSold);
       const lettucesPerPack = toNumber(row.lettucesPerPack, defaultHeads);
@@ -442,7 +459,7 @@ export function salesByProduct(state, period = "all") {
       grossSales: 0,
       discountReturns: 0,
       netSales: 0,
-      batches: []
+      dates: []
     };
 
     current.packsSold += row.packsSold;
@@ -450,19 +467,21 @@ export function salesByProduct(state, period = "all") {
     current.grossSales += row.grossSales;
     current.discountReturns += toNumber(row.discountReturns);
     current.netSales += row.netSales;
-    if (row.batch && !current.batches.includes(row.batch)) current.batches.push(row.batch);
+    if (row.date && !current.dates.includes(row.date)) current.dates.push(row.date);
     products.set(crop, current);
   }
 
   return [...products.values()].map((row) => ({
     ...row,
+    dates: row.dates.sort(),
+    latestDate: row.dates.slice().sort().at(-1) || "",
     averagePricePack: row.packsSold ? row.grossSales / row.packsSold : 0
   }));
 }
 
 export function enrichPurchases(state, period = "all") {
   return (state.purchases || [])
-    .filter((row) => inPeriod(row.date, period))
+    .filter((row) => inReportingPeriod(state, row.date, period))
     .map((row) => {
       const qty = toNumber(row.qty);
       const totalCost = toNumber(row.totalCost);
@@ -572,7 +591,7 @@ export function inventorySummary(state) {
 export function enrichLabor(state, period = "all") {
   const defaultRate = toNumber(state.assumptions.defaultLaborRate);
   return (state.labor || [])
-    .filter((row) => inPeriod(row.date, period))
+    .filter((row) => inReportingPeriod(state, row.date, period))
     .map((row) => {
       const hoursWorked = toNumber(row.hoursWorked);
       const effectiveRateHour = row.overrideRateHour === "" ? defaultRate : toNumber(row.overrideRateHour);
@@ -590,7 +609,7 @@ export function enrichLabor(state, period = "all") {
 export function enrichElectricity(state, period = "all") {
   const defaultRate = toNumber(state.assumptions.defaultElectricityRate);
   return (state.electricity || [])
-    .filter((row) => inPeriod(row.month, period))
+    .filter((row) => inReportingPeriod(state, row.month, period))
     .map((row) => {
       const ratedWatts = toNumber(row.ratedWatts);
       const qty = toNumber(row.qty, 1);
@@ -614,7 +633,7 @@ export function enrichElectricity(state, period = "all") {
 
 export function enrichExpenses(state, period = "all") {
   return (state.expenses || [])
-    .filter((row) => inPeriod(row.date, period))
+    .filter((row) => inReportingPeriod(state, row.date, period))
     .map((row) => ({
       ...row,
       month: monthKey(row.date),
@@ -680,7 +699,7 @@ function financingEffect(row) {
 
 export function enrichFinancing(state, period = "all") {
   return (state.financing || [])
-    .filter((row) => inPeriod(row.date, period))
+    .filter((row) => inReportingPeriod(state, row.date, period))
     .map((row) => ({
       ...row,
       month: monthKey(row.date),
@@ -692,13 +711,11 @@ export function enrichFinancing(state, period = "all") {
 export function calculateSummary(state, period = "all") {
   const sales = enrichSales(state, period);
   const purchases = enrichPurchases(state, period);
-  const usages = enrichUsages(state, period);
   const labor = enrichLabor(state, period);
   const electricity = enrichElectricity(state, period);
   const expenses = enrichExpenses(state, period);
   const assets = enrichAssets(state, period);
   const financing = enrichFinancing(state, period);
-  const inventory = inventorySummary(state);
 
   const netSales = sum(sales, (row) => row.netSales);
   const grossSales = sum(sales, (row) => row.grossSales);
@@ -710,16 +727,16 @@ export function calculateSummary(state, period = "all") {
   const receivableSales = netSales - collectedSales;
 
   const nutrientCost = sum(
-    usages.filter((row) => row.ledger === "nutrient"),
-    (row) => row.usageCost
+    purchases.filter((row) => row.ledger === "nutrient"),
+    (row) => row.totalCost
   );
   const supplyCost = sum(
-    usages.filter((row) => row.ledger === "supply"),
-    (row) => row.usageCost
+    purchases.filter((row) => row.ledger === "supply"),
+    (row) => row.totalCost
   );
   const chemicalCost = sum(
-    usages.filter((row) => row.ledger === "chemical"),
-    (row) => row.usageCost
+    purchases.filter((row) => row.ledger === "chemical"),
+    (row) => row.totalCost
   );
   const productionLabor = sum(
     labor.filter((row) => row.production === "Production"),
@@ -745,7 +762,10 @@ export function calculateSummary(state, period = "all") {
     expenses.filter((row) => row.production !== "Production"),
     (row) => row.amount
   );
-  const depreciation = sum(assets, (row) => row.accumulatedDepreciation);
+  const depreciation = sum(
+    assets.filter((row) => String(row.status || "").trim().toLowerCase() === "active"),
+    (row) => row.accumulatedDepreciation
+  );
   const directProductionCost =
     nutrientCost +
     supplyCost +
@@ -774,7 +794,7 @@ export function calculateSummary(state, period = "all") {
   const laborCashOut = sum(labor, (row) => row.laborCost);
   const powerCashOut = sum(electricity, (row) => row.deviceCost);
   const assetCashOut = sum(
-    enrichAssets(state).filter((row) => inPeriod(row.acquisitionDate, period)),
+    enrichAssets(state).filter((row) => inReportingPeriod(state, row.acquisitionDate, period)),
     (row) => row.totalCost
   );
   const financingNet = sum(financing, (row) => row.cashEffect);
@@ -790,14 +810,8 @@ export function calculateSummary(state, period = "all") {
     assetCashOut;
 
   const checks = [];
-  const negativeInventory = inventory.filter((row) => row.endingQty < -0.0001);
-  if (negativeInventory.length) {
-    checks.push(`${negativeInventory.length} inventory item(s) are negative. Add purchase rows or reduce usage.`);
-  }
   if (sales.some((row) => !row.pricePack)) checks.push("Some sales rows have no price per pack.");
-  if (usages.some((row) => row.qtyUsed && !row.weightedAvgCostUnit)) {
-    checks.push("Some usage rows have no matching purchase cost.");
-  }
+  if (purchases.some((row) => row.qty && !row.totalCost)) checks.push("Some purchases have quantity but no cost.");
   if (!checks.length) checks.push("No blocking model checks found.");
 
   return {
@@ -830,9 +844,48 @@ export function calculateSummary(state, period = "all") {
       assetCashOut,
       cashBalance
     },
-    inventory,
     checks
   };
+}
+
+export function monthlyCostSummary(state) {
+  const fiscalYear = String(state.assumptions.fiscalYear || "");
+  let periods = uniquePeriods(state).filter((period) => !fiscalYear || period.startsWith(fiscalYear));
+  if (!periods.length) periods = uniquePeriods(state);
+
+  return periods
+    .slice()
+    .sort()
+    .map((period) => {
+      const summary = calculateSummary(state, period);
+      const hasActivity = summary.sales.netSales || summary.costs.directProductionCost;
+      const status = !hasActivity
+        ? "No activity"
+        : !summary.sales.netSales || summary.margin.grossMargin < toNumber(state.assumptions.targetGrossMargin, 0.5)
+          ? "Review"
+          : "OK";
+      return {
+        period,
+        month: readableMonth(period),
+        netSales: summary.sales.netSales,
+        nutrientPurchases: summary.costs.nutrientCost,
+        seedSupplyPurchases: summary.costs.supplyCost,
+        chemicalPurchases: summary.costs.chemicalCost,
+        productionLabor: summary.costs.productionLabor,
+        productionElectricity: summary.costs.productionPower,
+        otherProductionExpense: summary.costs.productionExpenses,
+        directProductionCost: summary.costs.directProductionCost,
+        grossProfit: summary.margin.grossProfit,
+        grossMargin: summary.margin.grossMargin,
+        packsSold: summary.sales.packsSold,
+        costPerPack: summary.margin.directCostPack,
+        averagePricePack: summary.sales.averagePrice,
+        marginPerPack: summary.sales.packsSold
+          ? (summary.margin.grossProfit / summary.sales.packsSold)
+          : 0,
+        status
+      };
+    });
 }
 
 export function cycleCosting(state, period = "all") {
@@ -966,7 +1019,6 @@ function salesRows(state) {
       "Date",
       "Month",
       "Crop/Product",
-      "Batch/Cycle",
       "Packs Sold",
       "Lettuces/Pack",
       "Equivalent Lettuce Heads",
@@ -981,7 +1033,6 @@ function salesRows(state) {
       row.date,
       row.month,
       row.crop,
-      row.batch,
       row.packsSold,
       row.lettucesPerPack,
       row.equivalentHeads,
@@ -1061,7 +1112,7 @@ function usageRows(state, ledger) {
 
 function electricityRows(state) {
   return [
-    ["Month", "Device", "Rated Watts", "Qty", "Hours/Day", "Days Used", "Estimated kWh", "Rate per kWh", "Device Cost", "Production/Overhead", "Batch/Cycle", "Remarks"],
+    ["Month", "Device", "Rated Watts", "Qty", "Hours/Day", "Days Used", "Estimated kWh", "Rate per kWh", "Device Cost", "Production/Overhead", "Remarks"],
     ...enrichElectricity(state).map((row) => [
       row.month,
       row.device,
@@ -1073,7 +1124,6 @@ function electricityRows(state) {
       row.rateKwh,
       row.deviceCost,
       row.production,
-      row.batch,
       row.remarks
     ])
   ];
@@ -1111,7 +1161,7 @@ function tankRows(state) {
 
 function laborRows(state) {
   return [
-    ["Date", "Month", "Worker/Role", "Task", "Hours Worked", "Override Rate/Hour", "Effective Rate/Hour", "Labor Cost", "Production/Overhead", "Batch/Cycle", "Remarks"],
+    ["Date", "Month", "Worker/Role", "Task", "Hours Worked", "Override Rate/Hour", "Effective Rate/Hour", "Labor Cost", "Production/Overhead", "Remarks"],
     ...enrichLabor(state).map((row) => [
       row.date,
       row.month,
@@ -1122,7 +1172,6 @@ function laborRows(state) {
       row.effectiveRateHour,
       row.laborCost,
       row.production,
-      row.batch,
       row.remarks
     ])
   ];
@@ -1152,7 +1201,7 @@ function assetRows(state) {
 
 function expenseRows(state) {
   return [
-    ["Date", "Month", "Expense Category", "Description", "Amount", "Production/Overhead", "Paid?", "Receipt/Ref", "Batch/Cycle", "Remarks"],
+    ["Date", "Month", "Expense Category", "Description", "Amount", "Production/Overhead", "Paid?", "Receipt/Ref", "Remarks"],
     ...enrichExpenses(state).map((row) => [
       row.date,
       row.month,
@@ -1162,7 +1211,6 @@ function expenseRows(state) {
       row.production,
       row.paid,
       row.receiptRef,
-      row.batch,
       row.remarks
     ])
   ];
@@ -1216,8 +1264,14 @@ function cycleRows(state) {
 
 export function buildWorkbookSheets(state) {
   const summary = calculateSummary(state);
-  const inventory = inventorySummary(state);
+  const monthly = monthlyCostSummary(state);
   const currency = state.assumptions.currency || "PHP";
+  const fixedAssetsNbv = sum(enrichAssets(state), (row) => row.netBookValue);
+  const unpaidPurchases = sum(
+    enrichPurchases(state).filter((row) => !toBool(row.paid)),
+    (row) => row.totalCost
+  );
+  const estimatedAssets = summary.cash.cashBalance + fixedAssetsNbv + summary.sales.receivableSales;
   return {
     Dashboard: [
       ["Metric", "Value", "Notes"],
@@ -1236,13 +1290,9 @@ export function buildWorkbookSheets(state) {
     "Setup & Assumptions": setupRows(state),
     "Sales Register": salesRows(state),
     Electricity: electricityRows(state),
-    "Tank & Top-up Log": tankRows(state),
     "Nutrient Purchases": purchaseRows(state, "nutrient"),
-    "Nutrient Mixing Usage": usageRows(state, "nutrient"),
     "Seed & Supply Purchases": purchaseRows(state, "supply"),
-    "Seed & Supply Usage": usageRows(state, "supply"),
     "Chemical Purchases": purchaseRows(state, "chemical"),
-    "Chemical Usage": usageRows(state, "chemical"),
     Labor: laborRows(state),
     "Fixed Assets": assetRows(state),
     "Other Expenses": expenseRows(state),
@@ -1250,9 +1300,9 @@ export function buildWorkbookSheets(state) {
     "Income Statement": [
       ["Line Item", "Amount"],
       ["Net Sales", summary.sales.netSales],
-      ["Nutrients Used", summary.costs.nutrientCost],
-      ["Seeds/Supplies Used", summary.costs.supplyCost],
-      ["Chemicals Used", summary.costs.chemicalCost],
+      ["Nutrient Purchases Used", summary.costs.nutrientCost],
+      ["Seed & Supply Purchases Used", summary.costs.supplyCost],
+      ["Chemical Purchases Used", summary.costs.chemicalCost],
       ["Production Labor", summary.costs.productionLabor],
       ["Production Electricity", summary.costs.productionPower],
       ["Other Production Expense", summary.costs.productionExpenses],
@@ -1263,29 +1313,14 @@ export function buildWorkbookSheets(state) {
       ["Tax", summary.income.tax],
       ["Net Income", summary.income.netIncome]
     ],
-    "Inventory Summary": [
-      ["Ledger", "Item", "Unit", "Qty Bought", "Cost Bought", "Average Cost", "Qty Used", "Usage Cost", "Ending Qty", "Ending Value"],
-      ...inventory.map((row) => [
-        row.ledger,
-        row.item,
-        row.unit,
-        row.boughtQty,
-        row.boughtCost,
-        row.averageCost,
-        row.usedQty,
-        row.usedCost,
-        row.endingQty,
-        row.endingValue
-      ])
-    ],
     "Balance Sheet": [
       ["Line Item", "Amount"],
       ["Estimated Cash", summary.cash.cashBalance],
-      ["Inventory Value", sum(inventory, (row) => row.endingValue)],
-      ["Fixed Assets NBV", sum(enrichAssets(state), (row) => row.netBookValue)],
-      ["Receivables", summary.sales.receivableSales],
-      ["Estimated Assets", summary.cash.cashBalance + sum(inventory, (row) => row.endingValue) + sum(enrichAssets(state), (row) => row.netBookValue) + summary.sales.receivableSales],
-      ["Owner Equity / Retained Estimate", summary.income.netIncome + sum(enrichFinancing(state), (row) => row.cashEffect)]
+      ["Accounts Receivable", summary.sales.receivableSales],
+      ["Fixed Assets NBV", fixedAssetsNbv],
+      ["Estimated Assets", estimatedAssets],
+      ["Accounts Payable - Purchases", unpaidPurchases],
+      ["Owner Equity / Retained Estimate", estimatedAssets - unpaidPurchases]
     ],
     "Cash Flow": [
       ["Line Item", "Amount"],
@@ -1309,11 +1344,33 @@ export function buildWorkbookSheets(state) {
       ["Actual Production Cost/Pack", summary.margin.directCostPack],
       ["Suggested Price at Target GM", summary.margin.suggestedPrice]
     ],
-    "Crop Cycle Costing": cycleRows(state),
+    "Monthly Cost Summary": [
+      ["Month", "Net Sales", "Nutrient Purchases", "Seed & Supply Purchases", "Chemical Purchases", "Production Labor", "Production Electricity", "Other Production Expense", "Direct Production Cost", "Gross Profit", "Gross Margin", "Packs Sold", "Cost / Pack", "Average Price / Pack", "Margin / Pack", "Status"],
+      ...monthly.map((row) => [
+        row.month,
+        row.netSales,
+        row.nutrientPurchases,
+        row.seedSupplyPurchases,
+        row.chemicalPurchases,
+        row.productionLabor,
+        row.productionElectricity,
+        row.otherProductionExpense,
+        row.directProductionCost,
+        row.grossProfit,
+        row.grossMargin,
+        row.packsSold,
+        row.costPerPack,
+        row.averagePricePack,
+        row.marginPerPack,
+        row.status
+      ])
+    ],
     "Model Checks": [["Check"], ...summary.checks.map((check) => [check])],
     "Sources & Guide": [
       ["Topic", "Notes"],
       ["Source workbook", "hydroponics_financial_statement_owner_model_v3_pack_sales.xlsx"],
+      ["Cost policy", "Each purchase is treated as usage and expense on its purchase date."],
+      ["Period policy", "Reports and summaries are grouped by date and month. Batch tracking is not used."],
       ["Phone workflow", "Enter updates in HydroFS, then export JSON backup or Excel-compatible workbook."],
       ["Excel workflow", "Open the exported .xls file in Excel or copy ledger sheets into the owner model workbook."],
       ["Storage", "Data is saved locally on this device using IndexedDB with localStorage fallback."]

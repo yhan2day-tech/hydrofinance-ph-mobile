@@ -8,7 +8,6 @@ import {
   buildWorkbookSheets,
   calculateSummary,
   createDefaultState,
-  cycleCosting,
   deepClone,
   enrichAssets,
   enrichElectricity,
@@ -17,12 +16,11 @@ import {
   enrichLabor,
   enrichPurchases,
   enrichSales,
-  enrichUsages,
   formatMoney,
   formatNumber,
-  inventorySummary,
   makeId,
   mergeState,
+  monthlyCostSummary,
   readableMonth,
   salesByProduct,
   toCsv,
@@ -50,23 +48,18 @@ const views = [
   { id: "setup", label: "Setup & Assumptions" },
   { id: "sales", label: "Sales Register" },
   { id: "electricity", label: "Electricity" },
-  { id: "tanks", label: "Tank & Top-up Log" },
   { id: "nutrient-purchases", label: "Nutrient Purchases" },
-  { id: "nutrient-usage", label: "Nutrient Mixing Usage" },
   { id: "supply-purchases", label: "Seed & Supply Purchases" },
-  { id: "supply-usage", label: "Seed & Supply Usage" },
   { id: "chemical-purchases", label: "Chemical Purchases" },
-  { id: "chemical-usage", label: "Chemical Usage" },
   { id: "labor", label: "Labor" },
   { id: "assets", label: "Assets" },
   { id: "financing", label: "Financing & Equity" },
   { id: "expenses", label: "Other Expenses" },
-  { id: "inventory-summary", label: "Inventory Summary", sheetName: "Inventory Summary" },
   { id: "income-statement", label: "Income Statement", sheetName: "Income Statement" },
   { id: "balance-sheet", label: "Balance Sheet", sheetName: "Balance Sheet" },
   { id: "cash-flow", label: "Cash Flow", sheetName: "Cash Flow" },
   { id: "pricing-margin", label: "Pricing & Margin", sheetName: "Pricing & Margin" },
-  { id: "cycles", label: "Crop Cycle Costing" },
+  { id: "monthly-cost-summary", label: "Monthly Cost Summary", sheetName: "Monthly Cost Summary" },
   { id: "model-checks", label: "Model Checks", sheetName: "Model Checks" },
   { id: "sources-guide", label: "Sources & Guide", sheetName: "Sources & Guide" },
   { id: "sync", label: "Sync & Export" }
@@ -97,7 +90,6 @@ const collectionDefs = {
     defaults: () => ({
       date: todayIso(),
       crop: "Lettuce",
-      batch: "",
       packsSold: "",
       lettucesPerPack: state.assumptions.defaultLettucesPerPack,
       pricePack: state.assumptions.defaultPricePack,
@@ -108,7 +100,6 @@ const collectionDefs = {
     fields: [
       { name: "date", label: "Date", type: "date", required: true },
       { name: "crop", label: "Crop/Product", type: "text", required: true },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
       { name: "packsSold", label: "Packs sold", type: "number", step: "0.0001", required: true },
       { name: "lettucesPerPack", label: "Lettuces/pack", type: "number", step: "0.01" },
       { name: "pricePack", label: "Price/pack", type: "number", step: "0.01", required: true },
@@ -117,7 +108,7 @@ const collectionDefs = {
       { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     rows: () => enrichSales(state, currentPeriod),
-    titleFor: (row) => `${row.crop || "Sale"} ${row.batch ? `- ${row.batch}` : ""}`,
+    titleFor: (row) => row.crop || "Sale",
     columns: [
       ["Date", (row) => row.date],
       ["Packs", (row) => formatNumber(row.packsSold, 4)],
@@ -167,90 +158,6 @@ const collectionDefs = {
       ["Paid", (row) => row.paid || ""]
     ]
   },
-  usages: {
-    collection: "usages",
-    title: "Usage",
-    formTitle: "Usage",
-    prefix: "usage",
-    defaults: () => ({
-      ledger: "nutrient",
-      date: todayIso(),
-      batch: "",
-      tankRef: "",
-      eventType: "",
-      item: "",
-      category: "",
-      unitUsed: "",
-      qtyUsed: "",
-      purpose: "",
-      remarks: ""
-    }),
-    fields: [
-      { name: "ledger", label: "Ledger", type: "select", options: LEDGER_TYPES },
-      { name: "date", label: "Date", type: "date", required: true },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
-      { name: "tankRef", label: "Tank/top-up ref", type: "text" },
-      { name: "eventType", label: "Event type", type: "text" },
-      { name: "item", label: "Item", type: "text", required: true },
-      { name: "category", label: "Category", type: "text" },
-      { name: "unitUsed", label: "Unit used", type: "text" },
-      { name: "qtyUsed", label: "Qty used", type: "number", step: "0.0001", required: true },
-      { name: "purpose", label: "Purpose/reason", type: "text" },
-      { name: "remarks", label: "Remarks", type: "textarea" }
-    ],
-    rows: () => enrichUsages(state, currentPeriod),
-    titleFor: (row) => `${ledgerLabel(row.ledger)} - ${row.item || "Usage"}`,
-    columns: [
-      ["Date", (row) => row.date],
-      ["Batch", (row) => row.batch || ""],
-      ["Qty", (row) => formatNumber(row.qtyUsed, 4)],
-      ["Avg cost", (row) => money(row.weightedAvgCostUnit)],
-      ["Usage cost", (row) => money(row.usageCost)]
-    ]
-  },
-  tanks: {
-    collection: "tanks",
-    title: "Tank & Top-up Log",
-    formTitle: "Tank log",
-    prefix: "tank",
-    defaults: () => ({
-      date: todayIso(),
-      tankRef: "",
-      batch: "",
-      tankId: "",
-      eventType: "Top-up",
-      startingVolumeL: "",
-      waterAddedL: "",
-      waterDischargedL: 0,
-      endingVolumeL: "",
-      ec: "",
-      ph: "",
-      notes: ""
-    }),
-    fields: [
-      { name: "date", label: "Date", type: "date", required: true },
-      { name: "tankRef", label: "Tank/top-up ref", type: "text", required: true },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
-      { name: "tankId", label: "Tank ID", type: "text" },
-      { name: "eventType", label: "Event type", type: "text" },
-      { name: "startingVolumeL", label: "Starting volume L", type: "number", step: "0.01" },
-      { name: "waterAddedL", label: "Water added L", type: "number", step: "0.01" },
-      { name: "waterDischargedL", label: "Water discharged L", type: "number", step: "0.01" },
-      { name: "endingVolumeL", label: "Ending volume L", type: "number", step: "0.01" },
-      { name: "ec", label: "EC", type: "number", step: "0.01" },
-      { name: "ph", label: "pH", type: "number", step: "0.01" },
-      { name: "notes", label: "Notes", type: "textarea" }
-    ],
-    rows: () => (state.tanks || []).filter((row) => periodMatches(row.date)),
-    titleFor: (row) => row.tankRef || "Tank log",
-    columns: [
-      ["Date", (row) => row.date],
-      ["Tank", (row) => row.tankId || ""],
-      ["Added L", (row) => formatNumber(row.waterAddedL)],
-      ["EC", (row) => row.ec || ""],
-      ["pH", (row) => row.ph || ""]
-    ]
-  },
   labor: {
     collection: "labor",
     title: "Labor",
@@ -263,7 +170,6 @@ const collectionDefs = {
       hoursWorked: "",
       overrideRateHour: "",
       production: "Production",
-      batch: "",
       remarks: ""
     }),
     fields: [
@@ -273,7 +179,6 @@ const collectionDefs = {
       { name: "hoursWorked", label: "Hours worked", type: "number", step: "0.01", required: true },
       { name: "overrideRateHour", label: "Override rate/hour", type: "number", step: "0.01" },
       { name: "production", label: "Production/overhead", type: "select", options: PRODUCTION_FLAGS },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
       { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     rows: () => enrichLabor(state, currentPeriod),
@@ -300,7 +205,6 @@ const collectionDefs = {
       daysUsed: "",
       rateKwh: state.assumptions.defaultElectricityRate,
       production: "Production",
-      batch: "",
       remarks: ""
     }),
     fields: [
@@ -312,7 +216,6 @@ const collectionDefs = {
       { name: "daysUsed", label: "Days used", type: "number", step: "0.01" },
       { name: "rateKwh", label: "Rate/kWh", type: "number", step: "0.01" },
       { name: "production", label: "Production/overhead", type: "select", options: PRODUCTION_FLAGS },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
       { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     rows: () => enrichElectricity(state, currentPeriod),
@@ -321,8 +224,7 @@ const collectionDefs = {
       ["Month", (row) => row.month],
       ["kWh", (row) => formatNumber(row.estimatedKwh)],
       ["Cost", (row) => money(row.deviceCost)],
-      ["Type", (row) => row.production || ""],
-      ["Batch", (row) => row.batch || ""]
+      ["Type", (row) => row.production || ""]
     ]
   },
   assets: {
@@ -379,7 +281,6 @@ const collectionDefs = {
       production: "Overhead",
       paid: "Yes",
       receiptRef: "",
-      batch: "",
       remarks: ""
     }),
     fields: [
@@ -390,7 +291,6 @@ const collectionDefs = {
       { name: "production", label: "Production/overhead", type: "select", options: PRODUCTION_FLAGS },
       { name: "paid", label: "Paid?", type: "select", options: PAID_CHOICES },
       { name: "receiptRef", label: "Receipt/ref", type: "text" },
-      { name: "batch", label: "Batch/Cycle", type: "text" },
       { name: "remarks", label: "Remarks", type: "textarea" }
     ],
     rows: () => enrichExpenses(state, currentPeriod),
@@ -436,39 +336,7 @@ const collectionDefs = {
       ["Ref", (row) => row.receiptRef || ""]
     ]
   },
-  cycles: {
-    collection: "cycles",
-    title: "Crop Cycle Costing",
-    formTitle: "Crop cycle",
-    prefix: "cycle",
-    defaults: () => ({
-      batch: "",
-      crop: "",
-      startDate: todayIso(),
-      harvestMonth: currentPeriod !== "all" ? currentPeriod : thisMonth(),
-      expectedPacks: "",
-      status: "Open",
-      remarks: ""
-    }),
-    fields: [
-      { name: "batch", label: "Batch/Cycle", type: "text", required: true },
-      { name: "crop", label: "Crop/Product", type: "text" },
-      { name: "startDate", label: "Start date", type: "date" },
-      { name: "harvestMonth", label: "Harvest/sale month", type: "month" },
-      { name: "expectedPacks", label: "Expected packs", type: "number", step: "0.01" },
-      { name: "status", label: "Status", type: "text" },
-      { name: "remarks", label: "Remarks", type: "textarea" }
-    ],
-    rows: () => cycleCosting(state, currentPeriod),
-    titleFor: (row) => row.batch || "Crop cycle",
-    columns: [
-      ["Crop", (row) => row.crop || ""],
-      ["Sales", (row) => money(row.netSales)],
-      ["Full cost", (row) => money(row.fullCost)],
-      ["Margin", (row) => percent(row.directGrossMargin)],
-      ["Suggested", (row) => money(row.suggestedPriceTargetGm)]
-    ]
-  }
+
 };
 
 function sheetCollectionView(id, baseId, title, formTitle, fixedValues, titleFor) {
@@ -499,14 +367,6 @@ const sheetCollectionDefs = {
     { ledger: "nutrient" },
     (row) => row.item || "Nutrient Purchase"
   ),
-  "nutrient-usage": sheetCollectionView(
-    "nutrient-usage",
-    "usages",
-    "Nutrient Mixing Usage",
-    "Nutrient Usage",
-    { ledger: "nutrient" },
-    (row) => `${row.tankRef || row.batch || "Nutrient"} - ${row.item || "Usage"}`
-  ),
   "supply-purchases": sheetCollectionView(
     "supply-purchases",
     "purchases",
@@ -515,14 +375,6 @@ const sheetCollectionDefs = {
     { ledger: "supply" },
     (row) => row.item || "Seed/Supply Purchase"
   ),
-  "supply-usage": sheetCollectionView(
-    "supply-usage",
-    "usages",
-    "Seed & Supply Usage",
-    "Seed/Supply Usage",
-    { ledger: "supply" },
-    (row) => `${row.batch || "Batch"} - ${row.item || "Usage"}`
-  ),
   "chemical-purchases": sheetCollectionView(
     "chemical-purchases",
     "purchases",
@@ -530,14 +382,6 @@ const sheetCollectionDefs = {
     "Chemical Purchase",
     { ledger: "chemical" },
     (row) => row.item || "Chemical Purchase"
-  ),
-  "chemical-usage": sheetCollectionView(
-    "chemical-usage",
-    "usages",
-    "Chemical Usage",
-    "Chemical Usage",
-    { ledger: "chemical" },
-    (row) => `${row.batch || "Batch"} - ${row.item || "Usage"}`
   )
 };
 
@@ -718,7 +562,7 @@ function renderVegetableSummary(title) {
               <article class="vegetable-card">
                 <div class="vegetable-card-head">
                   <strong>${escapeHtml(displayCropName(row.crop))}</strong>
-                  <span>${escapeHtml(row.batches.join(", ") || "No batch")}</span>
+                  <span>${escapeHtml(row.latestDate ? `Latest: ${row.latestDate}` : "No sale date")}</span>
                 </div>
                 <dl>
                   <div><dt>Packs sold</dt><dd>${escapeHtml(formatNumber(row.packsSold, 4))}</dd></div>
@@ -759,8 +603,7 @@ function renderPeriodBar() {
 
 function renderDashboard() {
   const summary = calculateSummary(state, currentPeriod);
-  const cycles = cycleCosting(state, currentPeriod).slice(0, 6);
-  const inventory = inventorySummary(state).slice(0, 6);
+  const monthly = monthlyCostSummary(state).slice(-6).reverse();
   return `
     ${renderPeriodBar()}
     ${renderFlowPager()}
@@ -781,9 +624,9 @@ function renderDashboard() {
       <div class="panel">
         <div class="panel-heading"><h2>Cost Stack</h2></div>
         ${renderSimpleRows([
-          ["Nutrients", money(summary.costs.nutrientCost)],
-          ["Seeds/supplies", money(summary.costs.supplyCost)],
-          ["Chemicals", money(summary.costs.chemicalCost)],
+          ["Nutrient purchases", money(summary.costs.nutrientCost)],
+          ["Seed/supply purchases", money(summary.costs.supplyCost)],
+          ["Chemical purchases", money(summary.costs.chemicalCost)],
           ["Production labor", money(summary.costs.productionLabor)],
           ["Production power", money(summary.costs.productionPower)],
           ["Other production", money(summary.costs.productionExpenses)],
@@ -799,12 +642,21 @@ function renderDashboard() {
     </section>
     <section class="split-grid">
       <div class="panel">
-        <div class="panel-heading"><h2>Crop Cycles</h2></div>
-        ${renderSimpleRows(cycles.map((row) => [row.batch, `${money(row.fullCost)} | ${percent(row.directGrossMargin)}`]))}
+        <div class="panel-heading"><h2>Monthly Cost Summary</h2></div>
+        ${renderSimpleRows(
+          monthly.map((row) => [
+            row.month,
+            `${money(row.directProductionCost)} | ${percent(row.grossMargin)} | ${row.status}`
+          ])
+        )}
       </div>
       <div class="panel">
-        <div class="panel-heading"><h2>Inventory</h2></div>
-        ${renderSimpleRows(inventory.map((row) => [row.item, `${formatNumber(row.endingQty, 4)} ${row.unit || ""} | ${money(row.endingValue)}`]))}
+        <div class="panel-heading"><h2>Purchase Cost by Type</h2></div>
+        ${renderSimpleRows([
+          ["Nutrients", money(summary.costs.nutrientCost)],
+          ["Seeds and supplies", money(summary.costs.supplyCost)],
+          ["Chemicals", money(summary.costs.chemicalCost)]
+        ])}
       </div>
     </section>
   `;
@@ -856,9 +708,7 @@ function renderCollection(collection) {
   const vegetableSummary =
     collection === "sales"
       ? renderVegetableSummary("Vegetables in Sales Register")
-      : collection === "cycles"
-        ? renderVegetableSummary("Vegetables Included in Sales")
-        : "";
+      : "";
   return `
     ${renderPeriodBar()}
     ${renderFlowPager()}
@@ -890,8 +740,8 @@ function renderSync() {
         <span>.xls with workbook-style sheets</span>
       </button>
       <button class="action-tile" type="button" data-action="export-source-excel">
-        <strong>Original copy</strong>
-        <span>Source workbook snapshot from PC</span>
+        <strong>Workbook copy</strong>
+        <span>Revised source workbook snapshot from PC</span>
       </button>
       <button class="action-tile" type="button" data-action="export-json">
         <strong>JSON backup</strong>
@@ -1021,7 +871,7 @@ function renderWorkbookCopy() {
         <span>Sheet</span>
         <select data-action="workbook-sheet">${options}</select>
       </label>
-      <button class="button ghost" type="button" data-action="export-source-excel">Export original copy</button>
+      <button class="button ghost" type="button" data-action="export-source-excel">Export source copy</button>
     </section>
     <section class="panel source-panel">
       <div class="panel-heading">
@@ -1063,14 +913,11 @@ function totalRecords() {
     [
       "sales",
       "purchases",
-      "usages",
-      "tanks",
       "labor",
       "electricity",
       "assets",
       "expenses",
-      "financing",
-      "cycles"
+      "financing"
     ].reduce((count, key) => count + (state[key] || []).length, 0)
   );
 }
@@ -1257,11 +1104,11 @@ function downloadExcel() {
 
 function downloadSourceExcel() {
   downloadFile(
-    `${filenameBase()}-original-workbook-copy.xls`,
+    `${filenameBase()}-source-workbook-copy.xls`,
     "application/vnd.ms-excel;charset=utf-8",
     toSpreadsheetXml(sourceWorkbookSheets())
   );
-  renderStatus("Original workbook copy downloaded.");
+  renderStatus("Source workbook copy downloaded.");
 }
 
 function downloadCsv() {
